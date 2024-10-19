@@ -120,8 +120,8 @@ configure_node() {
     echo "Configuring node settings..."
 
     # Define seeds and peers
-    local SEEDS="51ff395354c13fab493a03268249a74860b5f9cc@story-testnet-seed.itrocket.net:26656"
-    local PEERS="2f372238bf86835e8ad68c0db12351833c40e8ad@story-testnet-peer.itrocket.net:26656,0a59ff770de0c2cbafaeaedde5615f44a951e236@149.102.139.16:26656,10f4a5147c5ae2e4707e9077aad44dd1c3fc7cd3@116.202.217.20:37656,ba7a053ab29149aa5ffcdae0248428ce49c53bc0@185.119.116.250:26656,c7d43303b4d49c64ba7df0d4fde7862500df53d1@88.99.145.72:26656,d4c5dcfbec11d80399bcf18d83a157259ca3efc7@138.201.200.100:26656,4f43fb9cb87eb32253d2e6e72b672c56a6e320a8@45.144.214.127:26656,58e07e11602fa804409489f76eec6fb5192c2edc@150.136.32.205:26656,0c591b429a59ec5de3bb7c3ccfebe0a06e6b362f@65.109.25.222:13656,cb516316f56abaedfa552253f1820c02907060e8@62.84.176.59:26656,cf18b6c03633f4d149fd3803e0faf77a16ab7228@109.199.122.75:26656,7f2240a32009a73e50484d026e81a7a7ba614216@103.241.50.17:26656,c27abe04ea45a8d42aa0731004b8087ae5618d56@109.123.246.3:26656,d035269700c3ab44516c42b4828995a60d53e13a@89.116.44.173:26656,3ba7dee61445e44b3c0c119fc60aa8102a99a827@65.109.30.106:25256,5389e10fcfce2e729c5e0c6e73280fdd58712f5c@77.90.6.83:26656,bafe9be7d93216536ebe8f828566ee222362d1d7@198.7.112.35:26656,e004daaad36a2a58a35be4851018a894c7ac657d@5.9.148.136:24256,692b0ac7326aea70cc409d5a876dfd65ff4e0608@154.53.56.128:26656,23f442467d9264c758c98d6c0c40996658bc64e8@185.144.99.26:26656,946266b5274d93aab30bdb455fe7f9eb531c0ace@65.108.194.107:22856,6714de675de4630f8f4a805713681ddb27ce2f12@65.21.150.1:26656,6e4566dd726ca21b7be5c98365e2b2668cde2019@144.76.234.131:26656,add09de9dfb9fa67d374b02c294bd5ec32495763@147.45.69.106:52656,a9c49f4cf04819fcad8b9dc099be6238454d9cc3@213.199.43.13:26656,b359c75c7c4a8860cd29d01c605a6610009d8b45@158.220.119.96:26656,8e33fb7dfa20e61bf743cdea89f8ca909946a189@65.108.232.134:26656,f6d9e9b173fe3625769cf01fd497337c028adad9@5.9.49.82:26656,e37291fac4f23f7086d36c75746abf953e5756dd@37.187.142.41:26656,e51b0c56e3a7b80dfb2aae2037aedd26d5ded2e7@157.90.213.57:23156"
+    local SEEDS="51ff395354c13fab493a03268249a74860b5f9cc@story-testnet-seed.itrocket.net:26656,b7e9b91c9e8c7e66e46dd15720cbe4f74f005592@galactica.seed-t.stavr.tech:35106,ade4d8bc8cbe014af6ebdf3cb7b1e9ad36f412c0@testnet-seeds.polkachu.com:29256"
+    local PEERS="0c9b936f1dc0af34679782d2ce8c80f0f8a106b3@136.243.13.36:29256,72a9d2790b6d3ff21fae0e493b62cca6b4c9f91c@65.109.28.187:26656,8a69935f34827dd81c721c63c69bfc54c849d028@46.4.52.158:26656,2f372238bf86835e8ad68c0db12351833c40e8ad@story-testnet-peer.itrocket.net:26656"
 
     # Set predefined ports
     local REST_PORT="1317"
@@ -220,17 +220,17 @@ install_snapshot() {
             # Remove old data
             rm -rf $HOME/.story/story/data
             rm -rf $HOME/.story/geth/iliad/geth/chaindata
+            mkdir -p $HOME/.story/story/data
 
             # Download and unpack the Story snapshot
             echo "Downloading and extracting Story snapshot..."
-            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
+            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story/data; then
                 echo "Error: Failed to download or extract the Story snapshot."
                 return 1
             fi
 
             # Restore priv_validator_state.json if it was backed up
             if [ -f "$HOME/.story/story/priv_validator_state.json.backup" ]; then
-                mkdir -p $HOME/.story/story/data
                 mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
             fi
 
@@ -240,8 +240,6 @@ install_snapshot() {
                 echo "Error: Failed to download or extract the Geth snapshot."
                 return 1
             fi
-
-            configure_node
 
             # Restart services and check logs
             sudo systemctl restart story story-geth
@@ -282,8 +280,6 @@ install_snapshot() {
                 echo "Error: Failed to download or extract the Geth snapshot."
                 return 1
             fi
-
-            configure_node
 
             # Restart services and check logs
             sudo systemctl restart story story-geth
