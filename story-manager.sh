@@ -224,8 +224,7 @@ install_snapshot() {
 
             # Download and unpack the Story snapshot
             echo "Downloading and extracting Story snapshot..."
-            #if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
-            if ! curl -L https://server-3.itrocket.net/testnet/story/story_2024-10-19_1571322_snap.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
+            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
                 echo "Error: Failed to download or extract the Story snapshot."
                 return 1
             fi
@@ -238,8 +237,7 @@ install_snapshot() {
 
             # Download and unpack the Geth snapshot
             echo "Downloading and extracting Geth snapshot..."
-            #if ! curl -L https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
-            if ! curl -L https://server-3.itrocket.net/testnet/story/geth_story_2024-10-19_1571322_snap.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
+            if ! curl -L https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
                 echo "Error: Failed to download or extract the Geth snapshot."
                 return 1
             fi
