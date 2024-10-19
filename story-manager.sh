@@ -12,7 +12,7 @@ MIN_CPU_CORES=4
 MIN_RAM_MB=8000
 MIN_DISK_GB=200
 GO_VERSION="1.22.3"
-GETH_VERSION="0.9.4"
+GETH_VERSION="v0.9.4"
 STORY_VERSION="v0.11.0"
 
 
@@ -93,7 +93,7 @@ install_story_binaries() {
     mkdir -p $HOME/go/bin/
 
     cd $HOME
-    wget -O geth https://github.com/piplabs/story-geth/releases/download/v0.9.4/geth-linux-amd64
+    wget -O geth https://github.com/piplabs/story-geth/releases/download/${GETH_VERSION}/geth-linux-amd64
     chmod +x $HOME/geth
     mv $HOME/geth $HOME/go/bin/story-geth
 
@@ -243,6 +243,8 @@ install_snapshot() {
                 return 1
             fi
 
+            configure_node
+
             # Restart services and check logs
             sudo systemctl restart story story-geth
             echo "Pruned Snapshot installation complete. Monitoring logs..."
@@ -281,6 +283,8 @@ install_snapshot() {
                 echo "Error: Failed to download or extract the Geth snapshot."
                 return 1
             fi
+
+            configure_node
 
             # Restart services and check logs
             sudo systemctl restart story story-geth
@@ -546,7 +550,7 @@ service_operations() {
     case $op_choice in
         1)
             echo "Checking logs..."
-            sudo journalctl -u story -f -o cat
+            view_logs
             ;;
         2)
             echo "Starting Story services..."
