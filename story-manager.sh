@@ -8,17 +8,14 @@ set -euo pipefail
 # Visit https://posthuman.digital for more information and support.
 # ------------------------------------------------
 
-# Define minimum hardware requirements
 MIN_CPU_CORES=4
 MIN_RAM_MB=16000
 MIN_DISK_GB=200
-
-# Define Story and Go versions
 GO_VERSION="1.22.4"
 GETH_VERSION="0.9.3-b224fdf"
 STORY_VERSION="0.9.13-b4c7db1"
 
-# Function to check system requirements
+
 check_system_requirements() {
     echo "Validating system specifications..."
     local cpu_cores=$(nproc --all)
@@ -51,7 +48,6 @@ check_system_requirements() {
     echo "System requirements check completed."
 }
 
-# Function to update and install dependencies
 install_dependencies() {
     echo "Updating package list and installing required packages..."
     sudo apt-get update && sudo apt-get upgrade -y
@@ -59,7 +55,6 @@ install_dependencies() {
     echo "Dependencies installation complete."
 }
 
-# Function to install Go
 install_go() {
     echo "Downloading and installing Go..."
     wget -q "https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go${GO_VERSION}.tar.gz
@@ -72,7 +67,6 @@ install_go() {
     echo "Go installation completed successfully."
 }
 
-# Function to install Story-Geth and Story binaries
 install_story_binaries() {
     echo "Downloading and installing Story-Geth and Story binaries..."
     local bin_dir="$HOME/bin"
@@ -90,14 +84,12 @@ install_story_binaries() {
     echo "Story-Geth and Story binaries installed in $bin_dir."
 }
 
-# Function to initialize the Iliad network node
 initialize_node() {
     echo "Initializing Iliad network node..."
     "$HOME/bin/story" init --network iliad
     echo "Node initialization completed."
 }
 
-# Function to configure systemd services for Story-Geth and Story
 setup_systemd_services() {
     echo "Setting up systemd services for Story-Geth and Story..."
 
@@ -139,17 +131,75 @@ EOF
     echo "Systemd services have been set up and started."
 }
 
-# Function to install snapshot for faster synchronization
 install_snapshot() {
-    echo "Stopping services and installing snapshot for faster synchronization..."
-    sudo systemctl stop story-geth story
-    rm -rf $HOME/.story/story/data
-    curl -L https://storage.crouton.digital/testnet/story/snapshots/story_latest.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story
-    sudo systemctl start story-geth story
-    echo "Snapshot installation complete."
+    echo "Choose the type of snapshot you want to install:"
+    echo "1. Pruned Snapshot (updated every 24 hours)"
+    echo "2. Archive Snapshot (updated every 6 hours)"
+    read -rp "Enter your choice [1-2]: " snapshot_choice
+
+    case $snapshot_choice in
+        1)
+            echo "Installing Pruned Snapshot..."
+
+            # Stop services
+            sudo systemctl stop story story-geth
+
+            # Backup priv_validator_state.json
+            cp $HOME/.story/story/data/priv_validator_state.json $HOME/.story/story/priv_validator_state.json.backup
+
+            # Reset Tendermint state
+            story tendermint unsafe-reset-all --home $HOME/.story/story --keep-addr-book
+
+            # Remove old data and unpack the Story snapshot
+            rm -rf $HOME/.story/story/data
+            curl https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story
+
+            # Restore priv_validator_state.json
+            mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
+
+            # Delete Geth data and unpack Geth snapshot
+            rm -rf $HOME/.story/geth/iliad/geth/chaindata
+            curl https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth
+
+            # Restart services and check logs
+            sudo systemctl restart story story-geth
+            echo "Pruned Snapshot installation complete. Monitoring logs..."
+            sudo journalctl -u story-geth -u story -f
+            ;;
+        2)
+            echo "Installing Archive Snapshot..."
+
+            # Stop services
+            sudo systemctl stop story story-geth
+
+            # Backup priv_validator_state.json
+            cp $HOME/.story/story/data/priv_validator_state.json $HOME/.story/story/priv_validator_state.json.backup
+
+            # Reset Tendermint state
+            story tendermint unsafe-reset-all --home $HOME/.story/story --keep-addr-book
+
+            # Remove old data and unpack the Story snapshot
+            rm -rf $HOME/.story/story/data
+            curl https://snapshots.story.posthuman.digital/story_archive.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story
+
+            # Restore priv_validator_state.json
+            mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
+
+            # Delete Geth data and unpack Geth snapshot
+            rm -rf $HOME/.story/geth/iliad/geth/chaindata
+            curl https://snapshots.story.posthuman.digital/geth_story_archive.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth
+
+            # Restart services and check logs
+            sudo systemctl restart story story-geth
+            echo "Archive Snapshot installation complete. Monitoring logs..."
+            sudo journalctl -u story-geth -u story -f
+            ;;
+        *)
+            echo "Invalid option. Please enter 1 or 2."
+            ;;
+    esac
 }
 
-# Function to create validator
 create_validator() {
     echo "Creating a new validator..."
     read -rp "Please enter a unique moniker for your node: " moniker
@@ -157,13 +207,11 @@ create_validator() {
     echo "Validator created with moniker: $moniker."
 }
 
-# Function to check sync status
 check_sync_status() {
     echo "Fetching sync status..."
     curl -s localhost:26657/status | jq -r '.result.sync_info'
 }
 
-# Function to view logs for Story and Story-Geth services
 view_logs() {
     echo "Select which logs to view:"
     echo "1. Story Logs"
@@ -185,7 +233,6 @@ view_logs() {
     esac
 }
 
-# Main menu
 while true; do
     echo -e "\nPostHuman Validator - Story Node Installation and Management Menu"
     echo "1. Install Node (Full Setup)"
