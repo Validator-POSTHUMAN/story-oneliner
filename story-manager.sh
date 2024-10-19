@@ -9,11 +9,11 @@ set -euo pipefail
 # ------------------------------------------------
 
 MIN_CPU_CORES=4
-MIN_RAM_MB=16000
+MIN_RAM_MB=8000
 MIN_DISK_GB=200
-GO_VERSION="1.22.4"
-GETH_VERSION="0.9.3-b224fdf"
-STORY_VERSION="0.9.13-b4c7db1"
+GO_VERSION="1.22.3"
+GETH_VERSION="0.9.4"
+STORY_VERSION="v0.11.0"
 
 
 check_system_requirements() {
@@ -51,62 +51,128 @@ check_system_requirements() {
 install_dependencies() {
     echo "Updating package list and installing required packages..."
     sudo apt-get update && sudo apt-get upgrade -y
-    sudo apt-get install -y curl git jq build-essential gcc unzip wget lz4 systemd
+    sudo apt-get install -y curl tar wget clang pkg-config libssl-dev jq build-essential bsdmainutils git make ncdu gcc git jq chrony liblz4-tool systemd
     echo "Dependencies installation complete."
 }
 
 install_go() {
+    # Check if Go is already installed
+    if go version &>/dev/null; then
+        echo "Go is already installed."
+        return
+    fi
+
     echo "Downloading and installing Go..."
-    wget -q "https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go${GO_VERSION}.tar.gz
+    wget "https://golang.org/dl/go$GO_VERSION.linux-amd64.tar.gz" -O /tmp/go${GO_VERSION}.tar.gz
     sudo rm -rf /usr/local/go
     sudo tar -C /usr/local -xzf /tmp/go${GO_VERSION}.tar.gz
     rm /tmp/go${GO_VERSION}.tar.gz
 
-    # Update PATH without sourcing .bashrc
-    echo "export PATH=\$PATH:/usr/local/go/bin:\$HOME/go/bin" >> /etc/profile.d/go.sh
-    export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+    # Update PATH using .bash_profile for persistent changes
+    echo "export PATH=\$PATH:/usr/local/go/bin:\$HOME/go/bin" >> ~/.bash_profile
+    source ~/.bash_profile
 
     go version
     echo "Go installation completed successfully."
 }
 
+set_environment_variables() {
+    echo "Setting environment variables..."
+
+    echo "export MONIKER=\"test\"" >> ~/.bash_profile
+    echo "export STORY_CHAIN_ID=\"iliad-0\"" >> ~/.bash_profile
+    echo "export STORY_PORT=\"26\"" >> ~/.bash_profile
+    source ~/.bash_profile
+
+    echo "Environment variables set: MONIKER=test, STORY_CHAIN_ID=iliad-0, STORY_PORT=26"
+}
+
+
 install_story_binaries() {
     echo "Downloading and installing Story-Geth and Story binaries..."
-    local bin_dir="$HOME/bin"
-    mkdir -p "$bin_dir"
+    mkdir -p $HOME/go/bin/
 
-    wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/geth-public/geth-linux-amd64-${GETH_VERSION}.tar.gz" -O /tmp/geth.tar.gz
-    tar -xzf /tmp/geth.tar.gz -C /tmp
-    mv /tmp/geth-linux-amd64-${GETH_VERSION}/geth "$bin_dir/story-geth"
+    cd $HOME
+    wget -O geth https://github.com/piplabs/story-geth/releases/download/v0.9.4/geth-linux-amd64
+    chmod +x $HOME/geth
+    mv $HOME/geth $HOME/go/bin/story-geth
 
-    wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/story-public/story-linux-amd64-${STORY_VERSION}.tar.gz" -O /tmp/story.tar.gz
-    tar -xzf /tmp/story.tar.gz -C /tmp
-    mv /tmp/story-linux-amd64-${STORY_VERSION}/story "$bin_dir/story"
+    rm -rf $HOME/story
+    git clone https://github.com/piplabs/story $HOME/story
+    cd story
+    git checkout $STORY_VERSION
+    go build -o story ./client
+    mv $HOME/story/story $HOME/go/bin/
 
-    rm -rf /tmp/geth.tar.gz /tmp/story.tar.gz /tmp/geth-linux-amd64-${GETH_VERSION} /tmp/story-linux-amd64-${STORY_VERSION}
-    echo "Story-Geth and Story binaries installed in $bin_dir."
+    # Create required directories if they don't exist
+    [ ! -d "$HOME/.story/story" ] && mkdir -p "$HOME/.story/story"
+    [ ! -d "$HOME/.story/geth" ] && mkdir -p "$HOME/.story/geth"
+
+    echo "Story-Geth and Story binaries installed in $HOME/go/bin."
 }
 
 initialize_node() {
     echo "Initializing Iliad network node..."
-    "$HOME/bin/story" init --network iliad
+    "$HOME/go/bin/story" init --network iliad
     echo "Node initialization completed."
 }
+
+configure_node() {
+    echo "Configuring node settings..."
+
+    # Define seeds and peers
+    local SEEDS="51ff395354c13fab493a03268249a74860b5f9cc@story-testnet-seed.itrocket.net:26656"
+    local PEERS="2f372238bf86835e8ad68c0db12351833c40e8ad@story-testnet-peer.itrocket.net:26656,0a59ff770de0c2cbafaeaedde5615f44a951e236@149.102.139.16:26656,10f4a5147c5ae2e4707e9077aad44dd1c3fc7cd3@116.202.217.20:37656,ba7a053ab29149aa5ffcdae0248428ce49c53bc0@185.119.116.250:26656,c7d43303b4d49c64ba7df0d4fde7862500df53d1@88.99.145.72:26656,d4c5dcfbec11d80399bcf18d83a157259ca3efc7@138.201.200.100:26656,4f43fb9cb87eb32253d2e6e72b672c56a6e320a8@45.144.214.127:26656,58e07e11602fa804409489f76eec6fb5192c2edc@150.136.32.205:26656,0c591b429a59ec5de3bb7c3ccfebe0a06e6b362f@65.109.25.222:13656,cb516316f56abaedfa552253f1820c02907060e8@62.84.176.59:26656,cf18b6c03633f4d149fd3803e0faf77a16ab7228@109.199.122.75:26656,7f2240a32009a73e50484d026e81a7a7ba614216@103.241.50.17:26656,c27abe04ea45a8d42aa0731004b8087ae5618d56@109.123.246.3:26656,d035269700c3ab44516c42b4828995a60d53e13a@89.116.44.173:26656,3ba7dee61445e44b3c0c119fc60aa8102a99a827@65.109.30.106:25256,5389e10fcfce2e729c5e0c6e73280fdd58712f5c@77.90.6.83:26656,bafe9be7d93216536ebe8f828566ee222362d1d7@198.7.112.35:26656,e004daaad36a2a58a35be4851018a894c7ac657d@5.9.148.136:24256,692b0ac7326aea70cc409d5a876dfd65ff4e0608@154.53.56.128:26656,23f442467d9264c758c98d6c0c40996658bc64e8@185.144.99.26:26656,946266b5274d93aab30bdb455fe7f9eb531c0ace@65.108.194.107:22856,6714de675de4630f8f4a805713681ddb27ce2f12@65.21.150.1:26656,6e4566dd726ca21b7be5c98365e2b2668cde2019@144.76.234.131:26656,add09de9dfb9fa67d374b02c294bd5ec32495763@147.45.69.106:52656,a9c49f4cf04819fcad8b9dc099be6238454d9cc3@213.199.43.13:26656,b359c75c7c4a8860cd29d01c605a6610009d8b45@158.220.119.96:26656,8e33fb7dfa20e61bf743cdea89f8ca909946a189@65.108.232.134:26656,f6d9e9b173fe3625769cf01fd497337c028adad9@5.9.49.82:26656,e37291fac4f23f7086d36c75746abf953e5756dd@37.187.142.41:26656,e51b0c56e3a7b80dfb2aae2037aedd26d5ded2e7@157.90.213.57:23156"
+
+    # Set predefined ports
+    local REST_PORT="1317"
+    local RPC_PORT="26657"
+    local P2P_PORT="26656"
+    local GRPC_PORT="9090"
+    local PROMETHEUS_PORT="26660"
+
+
+    # download genesis and addrbook
+    wget -O $HOME/.story/story/config/genesis.json https://snapshots.story.posthuman.digital/genesis.json
+    wget -O $HOME/.story/story/config/addrbook.json https://snapshots.story.posthuman.digital/addrbook.json
+
+    # Update config.toml with seeds, peers, and ports
+    sed -i -e "/^\[p2p\]/,/^\[/{s/^[[:space:]]*seeds *=.*/seeds = \"$SEEDS\"/}" \
+           -e "/^\[p2p\]/,/^\[/{s/^[[:space:]]*persistent_peers *=.*/persistent_peers = \"$PEERS\"/}" \
+           $HOME/.story/story/config/config.toml
+
+    # Set ports from environment variables (as per new setup)
+    sed -i.bak -e "s%:1317%:${STORY_PORT}317%g;
+    s%:8551%:${STORY_PORT}551%g" $HOME/.story/story/config/story.toml
+
+    sed -i.bak -e "s%:26658%:${STORY_PORT}658%g;
+    s%:26657%:${STORY_PORT}657%g;
+    s%:26656%:${STORY_PORT}656%g;
+    s%^external_address = \"\"%external_address = \"$(wget -qO- eth0.me):${STORY_PORT}656\"%;
+    s%:26660%:${STORY_PORT}660%g" $HOME/.story/story/config/config.toml
+
+    # Enable Prometheus monitoring and disable indexing
+    sed -i -e "s/prometheus = false/prometheus = true/" $HOME/.story/story/config/config.toml
+    sed -i -e "s/^indexer *=.*/indexer = \"null\"/" $HOME/.story/story/config/config.toml
+
+    echo "Node configuration completed with predefined ports."
+}
+
 
 setup_systemd_services() {
     echo "Setting up systemd services for Story-Geth and Story..."
 
     sudo tee /etc/systemd/system/story-geth.service > /dev/null <<EOF
 [Unit]
-Description=Story Geth Client
-After=network.target
+Description=Story Geth daemon
+After=network-online.target
 
 [Service]
 User=$USER
-ExecStart=$HOME/bin/story-geth --iliad --syncmode full
+ExecStart=$HOME/go/bin/geth --iliad --syncmode full --http.api eth,net,web3,engine --http.vhosts '*' --http.addr 0.0.0.0 --http.port ${STORY_PORT}545 --authrpc.port ${STORY_PORT}551 --ws --ws.api eth,web3,net,txpool --ws.addr 0.0.0.0 --ws.port ${STORY_PORT}546
 Restart=on-failure
-RestartSec=5
-LimitNOFILE=65536
+RestartSec=3
+LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
@@ -119,7 +185,7 @@ After=network.target
 
 [Service]
 User=$USER
-ExecStart=$HOME/bin/story run
+ExecStart=$HOME/go/bin/story run
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
@@ -158,7 +224,8 @@ install_snapshot() {
 
             # Download and unpack the Story snapshot
             echo "Downloading and extracting Story snapshot..."
-            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
+            #if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
+            if ! curl -L https://server-3.itrocket.net/testnet/story/story_2024-10-19_1571322_snap.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
                 echo "Error: Failed to download or extract the Story snapshot."
                 return 1
             fi
@@ -170,7 +237,8 @@ install_snapshot() {
 
             # Download and unpack the Geth snapshot
             echo "Downloading and extracting Geth snapshot..."
-            if ! curl -L https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
+            #if ! curl -L https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
+            if ! curl -L https://server-3.itrocket.net/testnet/story/geth_story_2024-10-19_1571322_snap.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
                 echo "Error: Failed to download or extract the Geth snapshot."
                 return 1
             fi
@@ -240,17 +308,17 @@ create_validator() {
     fi
 
     read -rp "Please enter a unique moniker for your node: " moniker
-    "$HOME/bin/story" init --network iliad --moniker "$moniker" --force
+    "$HOME/go/bin/story" init --network iliad --moniker "$moniker" --force
     echo "Validator created with moniker: $moniker."
 
     # Display validator key
     echo "Exporting validator key..."
-    "$HOME/bin/story" validator export
+    "$HOME/go/bin/story" validator export
     echo "Validator key exported. Please back up the key securely."
 
     # Display EVM private key
     echo "Exporting EVM private key..."
-    "$HOME/bin/story" validator export --export-evm-key
+    "$HOME/go/bin/story" validator export --export-evm-key
     cat "$HOME/.story/story/config/private_key.txt"
     echo "Use this private key to import your account into a wallet, such as Metamask or Phantom."
 }
@@ -268,7 +336,7 @@ validator_operations() {
     case $op_choice in
         1)
             echo "Exporting validator public key..."
-            "$HOME/bin/story" validator export
+            "$HOME/go/bin/story" validator export
             ;;
         2)
             echo "Delegating stake..."
@@ -288,22 +356,67 @@ validator_operations() {
             fi
 
             # Perform the delegation
-            "$HOME/bin/story" validator stake --validator-pubkey "$("$HOME/bin/story" validator export | grep "Compressed Public Key (base64)" | awk '{print $NF}')" --stake "$stake_amount" --private-key "$private_key"
+            "$HOME/go/bin/story" validator stake --validator-pubkey "$("$HOME/go/bin/story" validator export | grep "Compressed Public Key (base64)" | awk '{print $NF}')" --stake "$stake_amount" --private-key "$private_key"
             ;;
         3)
             echo "Unstaking from the validator..."
             read -rp "Enter the amount to unstake (in wei): " unstake_amount
-            "$HOME/bin/story" validator unstake --validator-pubkey $(story validator export | grep "Compressed Public Key (base64)" | awk '{print $NF}') --unstake "$unstake_amount" --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+
+            # Check if the private_key.txt file exists
+            if [ ! -f "$HOME/.story/story/config/private_key.txt" ]; then
+                echo "Error: private_key.txt not found. Make sure your validator is set up correctly."
+                return 1
+            fi
+
+            # Extract the private key
+            private_key=$(grep "PRIVATE_KEY" "$HOME/.story/story/config/private_key.txt" | awk -F'=' '{print $2}')
+            if [ -z "$private_key" ]; then
+                echo "Error: Could not extract the private key from private_key.txt."
+                return 1
+            fi
+
+            # Perform the unstaking
+            "$HOME/go/bin/story" validator unstake --validator-pubkey "$("$HOME/go/bin/story" validator export | grep "Compressed Public Key (base64)" | awk '{print $NF}')" --unstake "$unstake_amount" --private-key "$private_key"
             ;;
         4)
             echo "Managing operators..."
             read -rp "Enter the operator's EVM address: " operator_address
-            "$HOME/bin/story" validator add-operator --operator "$operator_address" --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+
+            # Check if the private_key.txt file exists
+            if [ ! -f "$HOME/.story/story/config/private_key.txt" ]; then
+                echo "Error: private_key.txt not found. Make sure your validator is set up correctly."
+                return 1
+            fi
+
+            # Extract the private key
+            private_key=$(grep "PRIVATE_KEY" "$HOME/.story/story/config/private_key.txt" | awk -F'=' '{print $2}')
+            if [ -z "$private_key" ]; then
+                echo "Error: Could not extract the private key from private_key.txt."
+                return 1
+            fi
+
+            # Add the operator
+            "$HOME/go/bin/story" validator add-operator --operator "$operator_address" --private-key "$private_key"
             ;;
         5)
             echo "Setting withdrawal address..."
             read -rp "Enter the withdrawal EVM address: " withdrawal_address
-            "$HOME/bin/story" validator set-withdrawal-address --withdrawal-address "$withdrawal_address" --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+
+            # Check if the private_key.txt file exists
+            if [ ! -f "$HOME/.story/story/config/private_key.txt" ]; then
+                echo "Error: private_key.txt not found. Make sure your validator is set up correctly."
+                return 1
+            fi
+
+            # Extract the private key
+            private_key=$(grep "PRIVATE_KEY" "$HOME/.story/story/config/private_key.txt" | awk -F'=' '{print $2}')
+            if [ -z "$private_key" ]; then
+                echo "Error: Could not extract the private key from private_key.txt."
+                return 1
+            fi
+
+            # Set the withdrawal address
+            "$HOME/go/bin/story" validator set-withdrawal-address --withdrawal-address "$withdrawal_address" --private-key "$private_key"
             ;;
         6)
             return
@@ -313,6 +426,7 @@ validator_operations() {
             ;;
     esac
 }
+
 
 node_operations() {
     echo "Node Operations:"
@@ -334,7 +448,7 @@ node_operations() {
             ;;
         3)
             echo "Fetching your enode..."
-            "$HOME/bin/story-geth" --exec "admin.nodeInfo.enode" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/story-geth" --exec "admin.nodeInfo.enode" attach ~/.story/geth/iliad/geth.ipc
             ;;
         4)
             echo "Configuring firewall rules..."
@@ -352,13 +466,42 @@ node_operations() {
 }
 
 delete_node() {
+    # Define color for red text
+    RED='\033[0;31m'
+    NC='\033[0m' # No Color
+
+    echo -e "${RED}Are you sure you want to delete the node? This action cannot be undone.${NC}"
+    read -rp "Type 'yes' to confirm, or anything else to cancel: " confirm
+
+    if [[ "$confirm" != "yes" ]]; then
+        echo "Node deletion canceled."
+        return
+    fi
+
     echo "Deleting node..."
     sudo systemctl stop story-geth story
     sudo systemctl disable story-geth story
     sudo rm /etc/systemd/system/story-geth.service /etc/systemd/system/story.service
     sudo systemctl daemon-reload
-    rm -rf $HOME/.story $HOME/bin/story-geth $HOME/bin/story
+    rm -rf $HOME/.story $HOME/go/bin/story-geth $HOME/go/bin/story
     echo "Node successfully deleted."
+}
+
+restore_priv_validator_state() {
+    echo "Restoring priv_validator_state.json from backup..."
+
+    local backup_file="$HOME/.story/story/priv_validator_state.json.backup"
+    local target_file="$HOME/.story/story/data/priv_validator_state.json"
+
+    # Check if the backup file exists
+    if [ -f "$backup_file" ]; then
+        # Restore the backup
+        cp "$backup_file" "$target_file"
+        echo "Successfully restored priv_validator_state.json from backup."
+    else
+        echo "Error: Backup file priv_validator_state.json.backup not found."
+        return 1
+    fi
 }
 
 check_sync_status() {
@@ -461,24 +604,24 @@ geth_operations() {
     case $op_choice in
         1)
             echo "Checking the latest block number..."
-            "$HOME/bin/story-geth" --exec "eth.blockNumber" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/story-geth" --exec "eth.blockNumber" attach ~/.story/geth/iliad/geth.ipc
             ;;
         2)
             echo "Checking connected peers..."
-            "$HOME/bin/story-geth" --exec "admin.peers" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/story-geth" --exec "admin.peers" attach ~/.story/geth/iliad/geth.ipc
             ;;
         3)
             echo "Checking if syncing is in progress..."
-            "$HOME/bin/story-geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/story-geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
             ;;
         4)
             echo "Checking gas price..."
-            "$HOME/bin/story-geth" --exec "eth.gasPrice" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/story-geth" --exec "eth.gasPrice" attach ~/.story/geth/iliad/geth.ipc
             ;;
         5)
             read -rp "Enter the EVM address to check the balance: " evm_address
             echo "Checking account balance for $evm_address..."
-            "$HOME/bin/story-geth" --exec "eth.getBalance('$evm_address')" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/story-geth" --exec "eth.getBalance('$evm_address')" attach ~/.story/geth/iliad/geth.ipc
             ;;
         6)
             return
@@ -511,8 +654,10 @@ while true; do
             check_system_requirements
             install_dependencies
             install_go
+            set_environment_variables
             install_story_binaries
             initialize_node
+            configure_node
             setup_systemd_services
             ;;
         2)
