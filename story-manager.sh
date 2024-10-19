@@ -232,6 +232,7 @@ install_snapshot() {
 
             # Restore priv_validator_state.json if it was backed up
             if [ -f "$HOME/.story/story/priv_validator_state.json.backup" ]; then
+                mkdir -p $HOME/.story/story/data
                 mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
             fi
 
@@ -274,6 +275,7 @@ install_snapshot() {
 
             # Restore priv_validator_state.json if it was backed up
             if [ -f "$HOME/.story/story/priv_validator_state.json.backup" ]; then
+                mkdir -p $HOME/.story/story/data
                 mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
             fi
 
