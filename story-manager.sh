@@ -170,7 +170,7 @@ After=network-online.target
 
 [Service]
 User=$USER
-ExecStart=$HOME/go/bin/geth --iliad --syncmode full --http.api eth,net,web3,engine --http.vhosts '*' --http.addr 0.0.0.0 --http.port ${STORY_PORT}545 --authrpc.port ${STORY_PORT}551 --ws --ws.api eth,web3,net,txpool --ws.addr 0.0.0.0 --ws.port ${STORY_PORT}546
+ExecStart=$HOME/go/bin/geth --iliad --syncmode full --http --http.api eth,net,web3,engine --http.vhosts '*' --http.addr 0.0.0.0 --http.port ${STORY_PORT}545 --authrpc.port ${STORY_PORT}551 --ws --ws.api eth,web3,net,txpool --ws.addr 0.0.0.0 --ws.port ${STORY_PORT}546
 Restart=on-failure
 RestartSec=3
 LimitNOFILE=65535
@@ -181,16 +181,17 @@ EOF
 
     sudo tee /etc/systemd/system/story.service > /dev/null <<EOF
 [Unit]
-Description=Story Consensus Client
+Description=Story Service
 After=network.target
 
 [Service]
 User=$USER
-ExecStart=$HOME/go/bin/story run
+WorkingDirectory=$HOME/.story/story
+ExecStart=$(which story) run
+
 Restart=on-failure
 RestartSec=5
-LimitNOFILE=65536
-
+LimitNOFILE=65535
 [Install]
 WantedBy=multi-user.target
 EOF
