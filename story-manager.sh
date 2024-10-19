@@ -106,7 +106,7 @@ install_story_binaries() {
     cd $HOME
     wget -O geth https://github.com/piplabs/story-geth/releases/download/${GETH_VERSION}/geth-linux-amd64
     chmod +x $HOME/geth
-    mv $HOME/geth $HOME/go/bin/story-geth
+    mv $HOME/geth $HOME/go/bin/geth
 
     rm -rf $HOME/story
     git clone https://github.com/piplabs/story $HOME/story
@@ -136,13 +136,6 @@ configure_node() {
     # Define seeds and peers
     local SEEDS="51ff395354c13fab493a03268249a74860b5f9cc@story-testnet-seed.itrocket.net:26656,b7e9b91c9e8c7e66e46dd15720cbe4f74f005592@galactica.seed-t.stavr.tech:35106,ade4d8bc8cbe014af6ebdf3cb7b1e9ad36f412c0@testnet-seeds.polkachu.com:29256"
     local PEERS="0c9b936f1dc0af34679782d2ce8c80f0f8a106b3@136.243.13.36:29256,72a9d2790b6d3ff21fae0e493b62cca6b4c9f91c@65.109.28.187:26656,8a69935f34827dd81c721c63c69bfc54c849d028@46.4.52.158:26656,2f372238bf86835e8ad68c0db12351833c40e8ad@story-testnet-peer.itrocket.net:26656"
-
-    # Set predefined ports
-    local REST_PORT="1317"
-    local RPC_PORT="26657"
-    local P2P_PORT="26656"
-    local GRPC_PORT="9090"
-    local PROMETHEUS_PORT="26660"
 
     # Update config.toml with seeds, peers, and ports
     sed -i -e "/^\[p2p\]/,/^\[/{s/^[[:space:]]*seeds *=.*/seeds = \"$SEEDS\"/}" \
@@ -177,7 +170,7 @@ After=network-online.target
 
 [Service]
 User=$USER
-ExecStart=$HOME/go/bin/story-geth --iliad --syncmode full --http.api eth,net,web3,engine --http.vhosts '*' --http.addr 0.0.0.0 --http.port ${STORY_PORT}545 --authrpc.port ${STORY_PORT}551 --ws --ws.api eth,web3,net,txpool --ws.addr 0.0.0.0 --ws.port ${STORY_PORT}546
+ExecStart=$HOME/go/bin/geth --iliad --syncmode full --http.api eth,net,web3,engine --http.vhosts '*' --http.addr 0.0.0.0 --http.port ${STORY_PORT}545 --authrpc.port ${STORY_PORT}551 --ws --ws.api eth,web3,net,txpool --ws.addr 0.0.0.0 --ws.port ${STORY_PORT}546
 Restart=on-failure
 RestartSec=3
 LimitNOFILE=65535
@@ -459,7 +452,7 @@ node_operations() {
             ;;
         3)
             echo "Fetching your enode..."
-            "$HOME/go/bin/story-geth" --exec "admin.nodeInfo.enode" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/geth" --exec "admin.nodeInfo.enode" attach ~/.story/geth/iliad/geth.ipc
             ;;
         4)
             echo "Configuring firewall rules..."
@@ -494,7 +487,7 @@ delete_node() {
     sudo systemctl disable story-geth story
     sudo rm /etc/systemd/system/story-geth.service /etc/systemd/system/story.service
     sudo systemctl daemon-reload
-    rm -rf $HOME/.story $HOME/go/bin/story-geth $HOME/go/bin/story
+    rm -rf $HOME/.story $HOME/go/bin/geth $HOME/go/bin/story
     echo "Node successfully deleted."
 }
 
@@ -524,7 +517,7 @@ check_sync_status() {
 
     # Check Geth sync status
     echo "Geth Sync Status:"
-    "$HOME/go/bin/story-geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
+    "$HOME/go/bin/geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
 }
 
 
@@ -623,24 +616,24 @@ geth_operations() {
     case $op_choice in
         1)
             echo "Checking the latest block number..."
-            "$HOME/go/bin/story-geth" --exec "eth.blockNumber" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/geth" --exec "eth.blockNumber" attach ~/.story/geth/iliad/geth.ipc
             ;;
         2)
             echo "Checking connected peers..."
-            "$HOME/go/bin/story-geth" --exec "admin.peers" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/geth" --exec "admin.peers" attach ~/.story/geth/iliad/geth.ipc
             ;;
         3)
             echo "Checking if syncing is in progress..."
-            "$HOME/go/bin/story-geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
             ;;
         4)
             echo "Checking gas price..."
-            "$HOME/go/bin/story-geth" --exec "eth.gasPrice" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/geth" --exec "eth.gasPrice" attach ~/.story/geth/iliad/geth.ipc
             ;;
         5)
             read -rp "Enter the EVM address to check the balance: " evm_address
             echo "Checking account balance for $evm_address..."
-            "$HOME/go/bin/story-geth" --exec "eth.getBalance('$evm_address')" attach ~/.story/geth/iliad/geth.ipc
+            "$HOME/go/bin/geth" --exec "eth.getBalance('$evm_address')" attach ~/.story/geth/iliad/geth.ipc
             ;;
         6)
             return
