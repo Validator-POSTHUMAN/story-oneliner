@@ -78,14 +78,26 @@ install_go() {
 set_environment_variables() {
     echo "Setting environment variables..."
 
-    echo "export MONIKER=\"test\"" >> ~/.bash_profile
-    echo "export STORY_CHAIN_ID=\"iliad-0\"" >> ~/.bash_profile
-    echo "export STORY_PORT=\"26\"" >> ~/.bash_profile
+    # Prompt for MONIKER, default to "test" if not provided
+    read -rp "Enter MONIKER (default: test): " moniker
+    moniker=${moniker:-test}
+
+    # Prompt for STORY_CHAIN_ID, default to "iliad-0" if not provided
+    read -rp "Enter STORY_CHAIN_ID (default: iliad-0): " chain_id
+    chain_id=${chain_id:-iliad-0}
+
+    # Prompt for STORY_PORT, default to "26" if not provided
+    read -rp "Enter STORY_PORT (default: 26): " story_port
+    story_port=${story_port:-26}
+
+    # Save to .bash_profile
+    echo "export MONIKER=\"$moniker\"" >> ~/.bash_profile
+    echo "export STORY_CHAIN_ID=\"$chain_id\"" >> ~/.bash_profile
+    echo "export STORY_PORT=\"$story_port\"" >> ~/.bash_profile
     source ~/.bash_profile
 
-    echo "Environment variables set: MONIKER=test, STORY_CHAIN_ID=iliad-0, STORY_PORT=26"
+    echo "Environment variables set: MONIKER=$moniker, STORY_CHAIN_ID=$chain_id, STORY_PORT=$story_port"
 }
-
 
 install_story_binaries() {
     echo "Downloading and installing Story-Geth and Story binaries..."
@@ -110,18 +122,20 @@ install_story_binaries() {
     echo "Story-Geth and Story binaries installed in $HOME/go/bin."
 }
 
-initialize_node() {
-    echo "Initializing Iliad network node..."
-    "$HOME/go/bin/story" init --network iliad
-    echo "Node initialization completed."
-}
-
 configure_node() {
     echo "Configuring node settings..."
+
+    echo "Initializing Iliad network node..."
+    "$HOME/go/bin/story" init --network "$STORY_CHAIN_ID" --moniker "$MONIKER"
+    echo "Node initialization completed with MONIKER=$MONIKER and STORY_CHAIN_ID=$STORY_CHAIN_ID."
 
     # Define seeds and peers
     local SEEDS="51ff395354c13fab493a03268249a74860b5f9cc@story-testnet-seed.itrocket.net:26656,b7e9b91c9e8c7e66e46dd15720cbe4f74f005592@galactica.seed-t.stavr.tech:35106,ade4d8bc8cbe014af6ebdf3cb7b1e9ad36f412c0@testnet-seeds.polkachu.com:29256"
     local PEERS="0c9b936f1dc0af34679782d2ce8c80f0f8a106b3@136.243.13.36:29256,72a9d2790b6d3ff21fae0e493b62cca6b4c9f91c@65.109.28.187:26656,8a69935f34827dd81c721c63c69bfc54c849d028@46.4.52.158:26656,2f372238bf86835e8ad68c0db12351833c40e8ad@story-testnet-peer.itrocket.net:26656"
+
+    # download genesis and addrbook
+    wget -O $HOME/.story/story/config/genesis.json https://snapshots.story.posthuman.digital/genesis.json
+    wget -O $HOME/.story/story/config/addrbook.json https://snapshots.story.posthuman.digital/addrbook.json
 
     # Set predefined ports
     local REST_PORT="1317"
@@ -129,11 +143,6 @@ configure_node() {
     local P2P_PORT="26656"
     local GRPC_PORT="9090"
     local PROMETHEUS_PORT="26660"
-
-
-    # download genesis and addrbook
-    wget -O $HOME/.story/story/config/genesis.json https://snapshots.story.posthuman.digital/genesis.json
-    wget -O $HOME/.story/story/config/addrbook.json https://snapshots.story.posthuman.digital/addrbook.json
 
     # Update config.toml with seeds, peers, and ports
     sed -i -e "/^\[p2p\]/,/^\[/{s/^[[:space:]]*seeds *=.*/seeds = \"$SEEDS\"/}" \
@@ -224,7 +233,7 @@ install_snapshot() {
 
             # Download and unpack the Story snapshot
             echo "Downloading and extracting Story snapshot..."
-            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story/data; then
+            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
                 echo "Error: Failed to download or extract the Story snapshot."
                 return 1
             fi
@@ -306,10 +315,6 @@ create_validator() {
         return 1
     fi
 
-    read -rp "Please enter a unique moniker for your node: " moniker
-    "$HOME/go/bin/story" init --network iliad --moniker "$moniker" --force
-    echo "Validator created with moniker: $moniker."
-
     # Display validator key
     echo "Exporting validator key..."
     "$HOME/go/bin/story" validator export
@@ -320,7 +325,14 @@ create_validator() {
     "$HOME/go/bin/story" validator export --export-evm-key
     cat "$HOME/.story/story/config/private_key.txt"
     echo "Use this private key to import your account into a wallet, such as Metamask or Phantom."
+
+    # Create validator
+    "$HOME/go/bin/story" validator create --stake 1000000000000000000 --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+
+    echo "Remember to backup your validator priv_key from here:"
+    cat $HOME/.story/story/config/priv_validator_key.json
 }
+
 
 validator_operations() {
     echo "Validator Operations:"
@@ -659,16 +671,14 @@ while true; do
     case $choice in
         1)
             check_system_requirements
+            set_environment_variables
             install_dependencies
             install_go
-            set_environment_variables
             install_story_binaries
-            initialize_node
             configure_node
             setup_systemd_services
             ;;
         2)
-            set_environment_variables
             install_snapshot
             ;;
         3)
