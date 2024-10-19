@@ -125,13 +125,13 @@ install_story_binaries() {
 configure_node() {
     echo "Configuring node settings..."
 
-    echo "Initializing Iliad network node..."
-    "$HOME/go/bin/story" init --network "$STORY_CHAIN_ID" --moniker "$MONIKER"
-    echo "Node initialization completed with MONIKER=$MONIKER and STORY_CHAIN_ID=$STORY_CHAIN_ID."
-
     # download genesis and addrbook
     wget -O $HOME/.story/story/config/genesis.json https://snapshots.story.posthuman.digital/genesis.json
     wget -O $HOME/.story/story/config/addrbook.json https://snapshots.story.posthuman.digital/addrbook.json
+
+    echo "Initializing Iliad network node..."
+    "$HOME/go/bin/story" init --network "$STORY_CHAIN_ID" --moniker "$MONIKER"
+    echo "Node initialization completed with MONIKER=$MONIKER and STORY_CHAIN_ID=$STORY_CHAIN_ID."
 
     # Define seeds and peers
     local SEEDS="51ff395354c13fab493a03268249a74860b5f9cc@story-testnet-seed.itrocket.net:26656,b7e9b91c9e8c7e66e46dd15720cbe4f74f005592@galactica.seed-t.stavr.tech:35106,ade4d8bc8cbe014af6ebdf3cb7b1e9ad36f412c0@testnet-seeds.polkachu.com:29256"
