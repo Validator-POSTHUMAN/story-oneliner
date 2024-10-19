@@ -14,7 +14,7 @@ MIN_DISK_GB=200
 GO_VERSION="1.22.3"
 GETH_VERSION="v0.9.4"
 STORY_VERSION="v0.11.0"
-
+STORY_PORT=${STORY_PORT:-26}
 
 check_system_requirements() {
     echo "Validating system specifications..."
@@ -673,6 +673,7 @@ while true; do
             setup_systemd_services
             ;;
         2)
+            set_environment_variables
             install_snapshot
             ;;
         3)
