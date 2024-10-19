@@ -509,9 +509,17 @@ restore_priv_validator_state() {
 }
 
 check_sync_status() {
-    echo "Fetching sync status..."
+    echo "Checking sync status"
+
+    # Check Story sync status
+    echo "Story Sync Status:"
     curl -s localhost:26657/status | jq -r '.result.sync_info'
+
+    # Check Geth sync status
+    echo "Geth Sync Status:"
+    "$HOME/go/bin/story-geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
 }
+
 
 view_logs() {
     echo "Select which logs to view:"
