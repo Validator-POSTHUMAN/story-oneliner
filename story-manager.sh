@@ -193,7 +193,7 @@ After=network.target
 
 [Service]
 User=$USER
-ExecStart=$HOME/go/bin/story run
+ExecStart=$HOME/bin/story run --engine-jwt-file=$HOME/.story/geth/iliad/geth/jwtsecret
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
