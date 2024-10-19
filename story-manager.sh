@@ -61,8 +61,11 @@ install_go() {
     sudo rm -rf /usr/local/go
     sudo tar -C /usr/local -xzf /tmp/go${GO_VERSION}.tar.gz
     rm /tmp/go${GO_VERSION}.tar.gz
-    echo "export PATH=\$PATH:/usr/local/go/bin:\$HOME/go/bin" >> ~/.profile
-    source ~/.profile
+
+    # Update PATH without sourcing .bashrc
+    echo "export PATH=\$PATH:/usr/local/go/bin:\$HOME/go/bin" >> /etc/profile.d/go.sh
+    export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+
     go version
     echo "Go installation completed successfully."
 }
@@ -144,22 +147,33 @@ install_snapshot() {
             # Stop services
             sudo systemctl stop story story-geth
 
-            # Backup priv_validator_state.json
-            cp $HOME/.story/story/data/priv_validator_state.json $HOME/.story/story/priv_validator_state.json.backup
+            # Backup priv_validator_state.json if it exists
+            if [ -f "$HOME/.story/story/data/priv_validator_state.json" ]; then
+                cp $HOME/.story/story/data/priv_validator_state.json $HOME/.story/story/priv_validator_state.json.backup
+            fi
 
-            # Reset Tendermint state
-            story tendermint unsafe-reset-all --home $HOME/.story/story --keep-addr-book
-
-            # Remove old data and unpack the Story snapshot
+            # Remove old data
             rm -rf $HOME/.story/story/data
-            curl https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story
-
-            # Restore priv_validator_state.json
-            mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
-
-            # Delete Geth data and unpack Geth snapshot
             rm -rf $HOME/.story/geth/iliad/geth/chaindata
-            curl https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth
+
+            # Download and unpack the Story snapshot
+            echo "Downloading and extracting Story snapshot..."
+            if ! curl -L https://snapshots-pruned.story.posthuman.digital/story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
+                echo "Error: Failed to download or extract the Story snapshot."
+                return 1
+            fi
+
+            # Restore priv_validator_state.json if it was backed up
+            if [ -f "$HOME/.story/story/priv_validator_state.json.backup" ]; then
+                mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
+            fi
+
+            # Download and unpack the Geth snapshot
+            echo "Downloading and extracting Geth snapshot..."
+            if ! curl -L https://snapshots-pruned.story.posthuman.digital/geth_story_pruned.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
+                echo "Error: Failed to download or extract the Geth snapshot."
+                return 1
+            fi
 
             # Restart services and check logs
             sudo systemctl restart story story-geth
@@ -172,22 +186,33 @@ install_snapshot() {
             # Stop services
             sudo systemctl stop story story-geth
 
-            # Backup priv_validator_state.json
-            cp $HOME/.story/story/data/priv_validator_state.json $HOME/.story/story/priv_validator_state.json.backup
+            # Backup priv_validator_state.json if it exists
+            if [ -f "$HOME/.story/story/data/priv_validator_state.json" ]; then
+                cp $HOME/.story/story/data/priv_validator_state.json $HOME/.story/story/priv_validator_state.json.backup
+            fi
 
-            # Reset Tendermint state
-            story tendermint unsafe-reset-all --home $HOME/.story/story --keep-addr-book
-
-            # Remove old data and unpack the Story snapshot
+            # Remove old data
             rm -rf $HOME/.story/story/data
-            curl https://snapshots.story.posthuman.digital/story_archive.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story
-
-            # Restore priv_validator_state.json
-            mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
-
-            # Delete Geth data and unpack Geth snapshot
             rm -rf $HOME/.story/geth/iliad/geth/chaindata
-            curl https://snapshots.story.posthuman.digital/geth_story_archive.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth
+
+            # Download and unpack the Story snapshot
+            echo "Downloading and extracting Story snapshot..."
+            if ! curl -L https://snapshots.story.posthuman.digital/story_archive.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/story; then
+                echo "Error: Failed to download or extract the Story snapshot."
+                return 1
+            fi
+
+            # Restore priv_validator_state.json if it was backed up
+            if [ -f "$HOME/.story/story/priv_validator_state.json.backup" ]; then
+                mv $HOME/.story/story/priv_validator_state.json.backup $HOME/.story/story/data/priv_validator_state.json
+            fi
+
+            # Download and unpack the Geth snapshot
+            echo "Downloading and extracting Geth snapshot..."
+            if ! curl -L https://snapshots.story.posthuman.digital/geth_story_archive.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.story/geth/iliad/geth; then
+                echo "Error: Failed to download or extract the Geth snapshot."
+                return 1
+            fi
 
             # Restart services and check logs
             sudo systemctl restart story story-geth
@@ -200,11 +225,140 @@ install_snapshot() {
     esac
 }
 
+
 create_validator() {
     echo "Creating a new validator..."
+
+    # Check if node is fully synced
+    local sync_status
+    sync_status=$(curl -s localhost:$(sed -n '/\[rpc\]/,/laddr/ { /laddr/ {s/.*://; s/".*//; p} }' $HOME/.story/story/config/config.toml)/status | jq -r '.result.sync_info.catching_up')
+    if [ "$sync_status" == "false" ]; then
+        echo "Node is fully synced."
+    else
+        echo "Node is still syncing. Please wait until it is fully synced before creating a validator."
+        return 1
+    fi
+
     read -rp "Please enter a unique moniker for your node: " moniker
-    "$HOME/bin/story" init --network iliad --moniker "$moniker"
+    "$HOME/bin/story" init --network iliad --moniker "$moniker" --force
     echo "Validator created with moniker: $moniker."
+
+    # Display validator key
+    echo "Exporting validator key..."
+    "$HOME/bin/story" validator export
+    echo "Validator key exported. Please back up the key securely."
+
+    # Display EVM private key
+    echo "Exporting EVM private key..."
+    "$HOME/bin/story" validator export --export-evm-key
+    cat "$HOME/.story/story/config/private_key.txt"
+    echo "Use this private key to import your account into a wallet, such as Metamask or Phantom."
+}
+
+validator_operations() {
+    echo "Validator Operations:"
+    echo "1. View Validator Info"
+    echo "2. Delegate"
+    echo "3. Unstake"
+    echo "4. Manage Operators"
+    echo "5. Set Withdrawal Address"
+    echo "6. Back"
+    read -rp "Enter your choice [1-6]: " op_choice
+
+    case $op_choice in
+        1)
+            echo "Exporting validator public key..."
+            "$HOME/bin/story" validator export
+            ;;
+        2)
+            echo "Delegating stake..."
+            read -rp "Enter the amount to stake (in wei): " stake_amount
+
+            # Check if the private_key.txt file exists
+            if [ ! -f "$HOME/.story/story/config/private_key.txt" ]; then
+                echo "Error: private_key.txt not found. Make sure your validator is set up correctly."
+                return 1
+            fi
+
+            # Extract the private key
+            private_key=$(grep "PRIVATE_KEY" "$HOME/.story/story/config/private_key.txt" | awk -F'=' '{print $2}')
+            if [ -z "$private_key" ]; then
+                echo "Error: Could not extract the private key from private_key.txt."
+                return 1
+            fi
+
+            # Perform the delegation
+            "$HOME/bin/story" validator stake --validator-pubkey "$("$HOME/bin/story" validator export | grep "Compressed Public Key (base64)" | awk '{print $NF}')" --stake "$stake_amount" --private-key "$private_key"
+            ;;
+        3)
+            echo "Unstaking from the validator..."
+            read -rp "Enter the amount to unstake (in wei): " unstake_amount
+            "$HOME/bin/story" validator unstake --validator-pubkey $(story validator export | grep "Compressed Public Key (base64)" | awk '{print $NF}') --unstake "$unstake_amount" --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+            ;;
+        4)
+            echo "Managing operators..."
+            read -rp "Enter the operator's EVM address: " operator_address
+            "$HOME/bin/story" validator add-operator --operator "$operator_address" --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+            ;;
+        5)
+            echo "Setting withdrawal address..."
+            read -rp "Enter the withdrawal EVM address: " withdrawal_address
+            "$HOME/bin/story" validator set-withdrawal-address --withdrawal-address "$withdrawal_address" --private-key $(cat $HOME/.story/story/config/private_key.txt | grep "PRIVATE_KEY" | awk -F'=' '{print $2}')
+            ;;
+        6)
+            return
+            ;;
+        *)
+            echo "Invalid option. Please enter a number between 1 and 6."
+            ;;
+    esac
+}
+
+node_operations() {
+    echo "Node Operations:"
+    echo "1. Node Info"
+    echo "2. Your Node Peer"
+    echo "3. Your Enode"
+    echo "4. Configure Firewall Rules"
+    echo "5. Back"
+    read -rp "Enter your choice [1-5]: " op_choice
+
+    case $op_choice in
+        1)
+            echo "Fetching node info..."
+            curl localhost:$(sed -n '/\[rpc\]/,/laddr/ { /laddr/ {s/.*://; s/".*//; p} }' $HOME/.story/story/config/config.toml)/status | jq
+            ;;
+        2)
+            echo "Fetching your node peer..."
+            echo "$(curl localhost:$(sed -n '/\[rpc\]/,/laddr/ { /laddr/ {s/.*://; s/".*//; p} }' $HOME/.story/story/config/config.toml)/status | jq -r '.result.node_info.id')@$(wget -qO- eth0.me):$(sed -n '/Address to listen for incoming connection/{n;p;}' $HOME/.story/story/config/config.toml | sed 's/.*://; s/".*//')"
+            ;;
+        3)
+            echo "Fetching your enode..."
+            "$HOME/bin/story-geth" --exec "admin.nodeInfo.enode" attach ~/.story/geth/iliad/geth.ipc
+            ;;
+        4)
+            echo "Configuring firewall rules..."
+            sudo ufw allow 30303/tcp comment geth_p2p_port
+            sudo ufw allow 26656/tcp comment story_p2p_port
+            echo "Firewall rules added."
+            ;;
+        5)
+            return
+            ;;
+        *)
+            echo "Invalid option. Please enter a number between 1 and 5."
+            ;;
+    esac
+}
+
+delete_node() {
+    echo "Deleting node..."
+    sudo systemctl stop story-geth story
+    sudo systemctl disable story-geth story
+    sudo rm /etc/systemd/system/story-geth.service /etc/systemd/system/story.service
+    sudo systemctl daemon-reload
+    rm -rf $HOME/.story $HOME/bin/story-geth $HOME/bin/story
+    echo "Node successfully deleted."
 }
 
 check_sync_status() {
@@ -233,18 +387,124 @@ view_logs() {
     esac
 }
 
+service_operations() {
+    echo "Service Operations:"
+    echo "1. Check Logs"
+    echo "2. Start Service"
+    echo "3. Stop Service"
+    echo "4. Restart Service"
+    echo "5. Check Service Status"
+    echo "6. Reload Services"
+    echo "7. Enable Service"
+    echo "8. Disable Service"
+    echo "9. Back"
+    read -rp "Enter your choice [1-9]: " op_choice
+
+    case $op_choice in
+        1)
+            echo "Checking logs..."
+            sudo journalctl -u story -f -o cat
+            ;;
+        2)
+            echo "Starting Story services..."
+            sudo systemctl start story story-geth
+            echo "Services started."
+            ;;
+        3)
+            echo "Stopping Story services..."
+            sudo systemctl stop story story-geth
+            echo "Services stopped."
+            ;;
+        4)
+            echo "Restarting Story services..."
+            sudo systemctl restart story story-geth
+            echo "Services restarted."
+            ;;
+        5)
+            echo "Checking service status..."
+            sudo systemctl status story story-geth
+            ;;
+        6)
+            echo "Reloading services..."
+            sudo systemctl daemon-reload
+            echo "Services reloaded."
+            ;;
+        7)
+            echo "Enabling services..."
+            sudo systemctl enable story story-geth
+            echo "Services enabled to start at boot."
+            ;;
+        8)
+            echo "Disabling services..."
+            sudo systemctl disable story story-geth
+            echo "Services disabled."
+            ;;
+        9)
+            return
+            ;;
+        *)
+            echo "Invalid option. Please enter a number between 1 and 9."
+            ;;
+    esac
+}
+
+geth_operations() {
+    echo "Geth Operations:"
+    echo "1. Check Latest Block"
+    echo "2. Check Peers"
+    echo "3. Check Sync Status"
+    echo "4. Check Gas Price"
+    echo "5. Check Account Balance"
+    echo "6. Back"
+    read -rp "Enter your choice [1-6]: " op_choice
+
+    case $op_choice in
+        1)
+            echo "Checking the latest block number..."
+            "$HOME/bin/story-geth" --exec "eth.blockNumber" attach ~/.story/geth/iliad/geth.ipc
+            ;;
+        2)
+            echo "Checking connected peers..."
+            "$HOME/bin/story-geth" --exec "admin.peers" attach ~/.story/geth/iliad/geth.ipc
+            ;;
+        3)
+            echo "Checking if syncing is in progress..."
+            "$HOME/bin/story-geth" --exec "eth.syncing" attach ~/.story/geth/iliad/geth.ipc
+            ;;
+        4)
+            echo "Checking gas price..."
+            "$HOME/bin/story-geth" --exec "eth.gasPrice" attach ~/.story/geth/iliad/geth.ipc
+            ;;
+        5)
+            read -rp "Enter the EVM address to check the balance: " evm_address
+            echo "Checking account balance for $evm_address..."
+            "$HOME/bin/story-geth" --exec "eth.getBalance('$evm_address')" attach ~/.story/geth/iliad/geth.ipc
+            ;;
+        6)
+            return
+            ;;
+        *)
+            echo "Invalid option. Please enter a number between 1 and 6."
+            ;;
+    esac
+}
+
+# Main menu loop
 while true; do
     echo -e "\nPostHuman Validator - Story Node Installation and Management Menu"
     echo "1. Install Node (Full Setup)"
     echo "2. Install Snapshot for Faster Sync"
     echo "3. Update Node"
     echo "4. Create Validator"
-    echo "5. View Logs"
-    echo "6. Delete Node"
-    echo "7. Check System Requirements"
-    echo "8. Check Sync Status"
-    echo "9. Exit"
-    read -rp "Enter your choice [1-9]: " choice
+    echo "5. Validator Operations"
+    echo "6. Node Operations"
+    echo "7. Service Operations"
+    echo "8. Geth Operations"
+    echo "9. Delete Node"
+    echo "10. Check System Requirements"
+    echo "11. Check Sync Status"
+    echo "12. Exit"
+    read -rp "Enter your choice [1-12]: " choice
 
     case $choice in
         1)
@@ -266,29 +526,32 @@ while true; do
             create_validator
             ;;
         5)
-            view_logs
+            validator_operations
             ;;
         6)
-            echo "Deleting node..."
-            sudo systemctl stop story-geth story
-            sudo systemctl disable story-geth story
-            sudo rm /etc/systemd/system/story-geth.service /etc/systemd/system/story.service
-            sudo systemctl daemon-reload
-            rm -rf $HOME/.story $HOME/bin/story-geth $HOME/bin/story
-            echo "Node successfully deleted."
+            node_operations
             ;;
         7)
-            check_system_requirements
+            service_operations
             ;;
         8)
-            check_sync_status
+            geth_operations
             ;;
         9)
+            delete_node
+            ;;
+        10)
+            check_system_requirements
+            ;;
+        11)
+            check_sync_status
+            ;;
+        12)
             echo "Exiting..."
             exit 0
             ;;
         *)
-            echo "Invalid option. Please enter a number between 1 and 9."
+            echo "Invalid option. Please enter a number between 1 and 12."
             ;;
     esac
 done
