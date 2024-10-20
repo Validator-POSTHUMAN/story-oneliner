@@ -755,3 +755,6 @@ while true; do
             ;;
     esac
 done
+
+# Reset terminal colors
+tput sgr0
