@@ -126,7 +126,7 @@ configure_node() {
     echo "Configuring node settings..."
 
     echo "Initializing Iliad network node..."
-    "$HOME/go/bin/story" init --moniker "$MONIKER" --network "$STORY_CHAIN_ID"
+    "$HOME/go/bin/story" init --moniker "$MONIKER" --network iliad
     echo "Node initialization completed with MONIKER=$MONIKER and STORY_CHAIN_ID=$STORY_CHAIN_ID."
 
     # download genesis and addrbook
