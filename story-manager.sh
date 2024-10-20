@@ -688,14 +688,32 @@ while true; do
 
     case $choice in
         1)
-            check_system_requirements
-            set_environment_variables
-            install_dependencies
-            install_go
-            install_story_binaries
-            configure_node
-            setup_systemd_services
-            install_snapshot
+            while true; do
+                echo "Install Node (Full Setup):"
+                echo "1. Clean Installation"
+                echo "2. Install with Snapshot"
+                read -rp "Enter your choice [1-2]: " install_choice
+
+                if [[ "$install_choice" == "1" || "$install_choice" == "2" ]]; then
+                    # Proceed with the installation steps
+                    check_system_requirements
+                    set_environment_variables
+                    install_dependencies
+                    install_go
+                    install_story_binaries
+                    configure_node
+                    setup_systemd_services
+
+                    if [[ "$install_choice" == "2" ]]; then
+                        install_snapshot
+                    else
+                        echo "Clean node installation complete."
+                    fi
+                    break  # Exit the loop after a successful installation
+                else
+                    echo "Invalid option. Please enter 1 or 2."
+                fi
+            done
             ;;
         2)
             install_snapshot
