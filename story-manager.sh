@@ -386,6 +386,14 @@ validator_operations() {
             ;;
         4)
             echo "Managing operators..."
+
+            # Ask whether to add or remove the operator
+            echo "Select an operation:"
+            echo "1. Add Operator"
+            echo "2. Remove Operator"
+            read -rp "Enter your choice [1-2]: " operation_choice
+
+            # Prompt for the operator's EVM address
             read -rp "Enter the operator's EVM address: " operator_address
 
             # Check if the private_key.txt file exists
@@ -401,9 +409,24 @@ validator_operations() {
                 return 1
             fi
 
-            # Add the operator
-            "$HOME/go/bin/story" validator add-operator --operator "$operator_address" --private-key "$private_key"
+            # Perform the selected operation
+            case $operation_choice in
+                1)
+                    # Add the operator
+                    "$HOME/go/bin/story" validator add-operator --operator "$operator_address" --private-key "$private_key"
+                    echo "Operator added successfully."
+                    ;;
+                2)
+                    # Remove the operator
+                    "$HOME/go/bin/story" validator remove-operator --operator "$operator_address" --private-key "$private_key"
+                    echo "Operator removed successfully."
+                    ;;
+                *)
+                    echo "Invalid option. Please enter 1 or 2."
+                    ;;
+            esac
             ;;
+
         5)
             echo "Setting withdrawal address..."
             read -rp "Enter the withdrawal EVM address: " withdrawal_address
