@@ -695,6 +695,7 @@ while true; do
             install_story_binaries
             configure_node
             setup_systemd_services
+            install_snapshot
             ;;
         2)
             install_snapshot
