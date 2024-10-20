@@ -318,6 +318,7 @@ create_validator() {
     echo "Exporting EVM private key..."
     "$HOME/go/bin/story" validator export --export-evm-key
     cat "$HOME/.story/story/config/private_key.txt"
+    echo " "
     echo "Use this private key to import your account into a wallet, such as Metamask or Phantom."
 
     # Create validator
@@ -341,7 +342,7 @@ validator_operations() {
     case $op_choice in
         1)
             echo "Exporting validator public key..."
-            "$HOME/go/bin/story" validator export
+            curl localhost:$(sed -n '/\[rpc\]/,/laddr/ { /laddr/ {s/.*://; s/".*//; p} }' $HOME/.story/story/config/config.toml)/status | jq
             ;;
         2)
             echo "Delegating stake..."
